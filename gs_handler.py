@@ -19,10 +19,10 @@ def get_creds():
 gs_client_main = gspread_asyncio.AsyncioGspreadClientManager(get_creds)
 
 
-async def add_trends_report(worksheet: str, data: list, gs_client=gs_client_main):
+async def add_trends_report(path: str, data: list, gs_client=gs_client_main):
     """
     Проверка наличия вкладки, создание если нет, выгрузка данных
-    :param worksheet: вкладка
+    :param path: вкладка
     :param data: данные
     :param gs_client: клиент
     :return: ссылка на выгруженную вкладку
@@ -36,11 +36,11 @@ async def add_trends_report(worksheet: str, data: list, gs_client=gs_client_main
         ws_list = await ss.worksheets()
         ws_list_names = [w.title for w in ws_list]
         # проверка существования вкладки
-        if worksheet in ws_list_names:
-            print(f'Отчет существует - {worksheet}')
+        if path in ws_list_names:
+            print(f'Отчет существует - {path}')
             return None
         # добавление вкладки
-        ws = await ss.add_worksheet(worksheet, 100, 12)
+        ws = await ss.add_worksheet(path, 100, 12)
         ws_id = ws.id
         ws_url = f'https://docs.google.com/spreadsheets/d/{settings.GS_DOC_KEY}/edit?gid={ws_id}#gid={ws_id}'
         # наполнение вкладки данными

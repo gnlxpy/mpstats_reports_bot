@@ -1,7 +1,6 @@
 import asyncio
 import json
 import traceback
-from datetime import datetime, date, timedelta
 import httpx
 from config import settings
 import pandas as pd
@@ -24,32 +23,22 @@ def get_headers_mpstat():
     return headers
 
 
-async def get_raw_trends_data(path: str, d1=None, d2=None, errors_max=3) -> bool | list:
+async def get_mpstat_report(url: str, params: dict, errors_max=3) -> bool | list:
     """
-    Получение сырых данных отчета Тренды из Мпстат
+    Получение сырых данных отчета из Мпстат
     :param path: запрос (категория)
-    :param d1: дата от
-    :param d2: дата до
     :param errors_max: число ошибок
     :return: список со словарями
     """
     headers = get_headers_mpstat()
-    if d1 is None and d2 is None:
-        d1, d2 = str(date.today() - timedelta(days=365)), str(date.today() - timedelta(days=1))
-    params = {
-        'path': path,
-        'view': 'itemsInCategory',
-        # 'd1': d1,
-        # 'd2': d2
-    }
     errors = 0
     while True:
         try:
             # асинхронный запрос
             async with httpx.AsyncClient() as client:
-                r = await client.get(url='https://mpstats.io/api/wb/get/category/trends',
+                r = await client.get(url=url,
                                      headers=headers, params=params, timeout=60)
-                print('get_raw_trends_data', 'path', path, 'r.status_code', r.status_code)
+                print(f'GET path {url} r.status_code {r.status_code}')
             # проверка кодов ошибок
             if r.status_code == 200:
                 try:
@@ -76,10 +65,10 @@ async def get_raw_trends_data(path: str, d1=None, d2=None, errors_max=3) -> bool
             continue
 
 
-def edit_trends_data(raw_data: list):
+def edit_trends(raw_data: list):
     """
     Обработка данных и преобразование в список списков для выгрузки в гугл таблицы
-    :param raw_data:
+    :param raw_data: сырые данные от АПИ
     :return:
     """
     # словарь для наполнения
@@ -116,22 +105,31 @@ def edit_trends_data(raw_data: list):
     return gs_data
 
 
-async def get_trends(path: str) -> str | bool | None:
+async def get_trends(type_report_name: str, url: str, path: str) -> str | bool | None:
     """
     Основная функция загрузки отчета Тренды
     :param path: запрос (категория)
     :return: ссылка на выгруженный отчет / булевое значение
     """
+    # подготовка заголовков
+    params = {'path': path}
+    if type_report_name == 'CAT':
+        params['view'] = 'itemsInCategory'
+
     # Получение сырых данных отчета Тренды из Мпстат
-    raw_data = await get_raw_trends_data(path)
+    raw_data = await get_mpstat_report(url, params)
     # Обработка данных и преобразование в список списков для выгрузки в гугл таблицы
-    gs_data = edit_trends_data(raw_data)
-    # выгрузка данных в Гугл таблицы
-    status = await add_trends_report(path, gs_data)
-    if status is False:
+    gs_data = edit_trends(raw_data)
+    if not gs_data:
         return False
-    elif status is None:
-        return None
+    if type_report_name == 'CAT':
+        worksheet = path
+    else:
+        worksheet = f'id предмета {path}'
+
+    # выгрузка данных в Гугл таблицы
+    status = await add_trends_report(worksheet, gs_data)
+
     return status
 
 
